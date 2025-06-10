@@ -21,3 +21,4 @@ target/
 #.idea/
 local-playground-workspace
 sample-book/book
+dist/
