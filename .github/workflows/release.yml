@@ -77,11 +77,10 @@ jobs:
           merge-multiple: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2.3.0
-        with:
-          files: artifacts/rust-local-playground-*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            artifacts/rust-local-playground-* \
+            --generate-notes \
+            --title "Release ${{ github.ref_name }}"
