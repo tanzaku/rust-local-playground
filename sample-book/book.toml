@@ -1,0 +1,8 @@
+[book]
+authors = ["tanzaku"]
+language = "en"
+src = "src"
+title = "rust-local-playground"
+
+[output.html]
+additional-js = ["local-playground.js"]

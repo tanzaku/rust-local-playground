@@ -1,0 +1,202 @@
+name: Test Local Playground
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - ".github/workflows/test-local-playground.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.go"
+      - ".github/workflows/test-local-playground.yml"
+
+jobs:
+  test-multi-platform:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: dist/local-playground-server-linux-amd64
+            platform: linux-amd64
+          - os: macos-13
+            binary: dist/local-playground-server-darwin-amd64
+            platform: darwin-amd64
+          - os: macos-14
+            binary: dist/local-playground-server-darwin-arm64
+            platform: darwin-arm64
+          - os: windows-latest
+            binary: dist/local-playground-server-windows-amd64.exe
+            platform: windows-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if binary exists
+        shell: bash
+        run: |
+          if [ ! -f "${{ matrix.binary }}" ]; then
+            echo "Error: Binary ${{ matrix.binary }} not found"
+            exit 1
+          fi
+          ls -la "${{ matrix.binary }}"
+
+      - name: Make binary executable (Unix)
+        if: runner.os != 'Windows'
+        run: chmod +x "${{ matrix.binary }}"
+
+      - name: Start server in background
+        shell: bash
+        run: |
+          echo "Starting Go Rust Playground server for ${{ matrix.platform }}..."
+          echo "Binary path: ${{ matrix.binary }}"
+          echo "System info: $(uname -a)"
+          echo "Architecture: $(arch 2>/dev/null || echo 'unknown')"
+
+          # Check binary architecture
+          if command -v file >/dev/null 2>&1; then
+            echo "Binary info: $(file ${{ matrix.binary }})"
+          fi
+
+          # Start server in background (bash works on all platforms in GitHub Actions)
+          ./${{ matrix.binary }} &
+          server_pid=$!
+          echo $server_pid > server.pid
+          echo "Server started with PID: $server_pid"
+
+          # Wait for server to start
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8081/ > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Attempt $i: Server not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: Wait for Rust toolchain installation
+        shell: bash
+        run: |
+          echo "Waiting for Rust toolchain to be installed..."
+          for i in {1..120}; do
+            response=$(curl -s http://localhost:8081/ || echo "")
+            if echo "$response" | grep -q "Using local Rust toolchain"; then
+              echo "Rust toolchain is ready!"
+              break
+            elif echo "$response" | grep -q "Using system Rust toolchain"; then
+              echo "Using system Rust toolchain (if available)"
+              break
+            fi
+            echo "Attempt $i: Rust toolchain not ready yet, waiting..."
+            if [ $((i % 6)) -eq 0 ]; then
+              echo "Current response: $response"
+            fi
+            sleep 5
+          done
+
+          # Show server status
+          echo "Current server status:"
+          curl -s http://localhost:8081/ || echo "Failed to get server status"
+
+          # Show recent server logs
+          echo "Checking for any error indicators in server process..."
+          sleep 2
+
+      - name: Test simple Rust code execution
+        shell: bash
+        run: |
+          echo "Testing simple Rust code execution..."
+          response=$(curl -s -X POST http://localhost:8081/execute \
+            -H "Content-Type: application/json" \
+            -d '{"code":"fn main() { println!(\"Hello from ${{ matrix.platform }}!\"); }"}')
+
+          echo "Response: $response"
+
+          # Check if execution was successful
+          if echo "$response" | jq -e '.success == true' > /dev/null; then
+            echo "✅ Simple Rust code execution successful!"
+            echo "Output: $(echo "$response" | jq -r '.stdout')"
+          else
+            echo "❌ Simple Rust code execution failed!"
+            echo "Error: $(echo "$response" | jq -r '.stderr')"
+            
+            # Show additional debug info on failure
+            echo ""
+            echo "=== DEBUG INFO ==="
+            echo "Server status response:"
+            curl -s http://localhost:8081/ || echo "Failed to get server status"
+            
+            echo ""
+            echo "Attempting to check server logs or process..."
+            ps aux | grep -E "(local-playground-server|rustup)" | head -10 || true
+            
+            exit 1
+          fi
+
+      - name: Test complex Rust code execution
+        shell: bash
+        run: |
+          echo "Testing complex Rust code execution..."
+          response=$(curl -s -X POST http://localhost:8081/execute \
+            -H "Content-Type: application/json" \
+            -d '{"code":"fn main() { for i in 1..=3 { println!(\"Count {}: Platform ${{ matrix.platform }}\", i); } let vec = vec![1, 2, 3]; println!(\"Vector: {:?}\", vec); }"}')
+
+          echo "Response: $response"
+
+          # Check if execution was successful
+          if echo "$response" | jq -e '.success == true' > /dev/null; then
+            echo "✅ Complex Rust code execution successful!"
+            echo "Output: $(echo "$response" | jq -r '.stdout')"
+          else
+            echo "❌ Complex Rust code execution failed!"
+            echo "Error: $(echo "$response" | jq -r '.stderr')"
+            exit 1
+          fi
+
+      - name: Test error handling
+        shell: bash
+        run: |
+          echo "Testing error handling with invalid Rust code..."
+          response=$(curl -s -X POST http://localhost:8081/execute \
+            -H "Content-Type: application/json" \
+            -d '{"code":"fn main() { invalid_syntax_here }"}')
+
+          echo "Response: $response"
+
+          # Check if error was properly handled
+          if echo "$response" | jq -e '.success == false' > /dev/null; then
+            echo "✅ Error handling working correctly!"
+            echo "Error message: $(echo "$response" | jq -r '.stderr')"
+          else
+            echo "❌ Error handling failed - invalid code should not succeed!"
+            exit 1
+          fi
+
+      - name: Stop server
+        shell: bash
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            pid=$(cat server.pid)
+            echo "Stopping server (PID: $pid)..."
+            if [[ "$RUNNER_OS" == "Windows" ]]; then
+              taskkill //PID $pid //F || true
+            else
+              kill $pid || true
+            fi
+            rm -f server.pid
+          fi
+
+      - name: Upload server logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-${{ matrix.platform }}
+          path: |
+            server.log
+            *.log
