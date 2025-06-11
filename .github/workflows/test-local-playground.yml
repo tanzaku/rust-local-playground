@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - "**/*.go"
+      - "dist/*"
       - ".github/workflows/test-local-playground.yml"
   pull_request:
     branches: [main]
     paths:
       - "**/*.go"
+      - "dist/*"
       - ".github/workflows/test-local-playground.yml"
 
 jobs:
