@@ -1,18 +1,18 @@
-# ローカルRust Playgroundサーバー
+# Local Rust Playground Server
 
-mdbookからRust Playgroundの公式APIを呼び出す代わりに、このローカルサーバーにリクエストを送ってRustコードをコンパイル・実行できるWebサーバーです。
+A web server that allows you to compile and execute Rust code locally by sending requests to this local server instead of calling the official Rust Playground API from mdbook.
 
-## 特徴
+## Features
 
-- **簡単セットアップ**: システムにRustがインストールされていなくても、初回起動時に自動でRustツールチェーンをダウンロード・セットアップ
-- **隔離された環境**: 専用ディレクトリにRustツールチェーンを配置し、システム環境に影響しない
-- **クロスプラットフォーム**: Linux、macOS、Windows対応
+- **Easy Setup**: Automatically downloads and sets up Rust toolchain on first startup, even if Rust is not installed on the system
+- **Isolated Environment**: Places Rust toolchain in a dedicated directory without affecting the system environment
+- **Cross-Platform**: Supports Linux, macOS, and Windows
 
-## インストール
+## Installation
 
-### 1. バイナリをダウンロード（推奨）
+### 1. Download Binary (Recommended)
 
-[Releases](https://github.com/tanzaku/rust-local-playground/releases)から対応するプラットフォーム用のバイナリをダウンロードしてください：
+Download the binary for your platform from [Releases](https://github.com/tanzaku/rust-local-playground/releases):
 
 - `rust-local-playground-linux-amd64` - Linux x64
 - `rust-local-playground-linux-arm64` - Linux ARM64
@@ -20,30 +20,31 @@ mdbookからRust Playgroundの公式APIを呼び出す代わりに、このロ�
 - `rust-local-playground-darwin-arm64` - macOS Apple Silicon
 - `rust-local-playground-windows-amd64.exe` - Windows x64
 
-### 2. 実行
+### 2. Run
 
 ```bash
-# Linux/macOS
+# Linux/macOS (add executable permission first)
+chmod +x rust-local-playground-linux-amd64
 ./rust-local-playground-linux-amd64
 
 # Windows
 rust-local-playground-windows-amd64.exe
 ```
 
-サーバーが `http://localhost:8081` で起動します。初回起動時はRustツールチェーンのダウンロードに時間がかかる場合があります。
+The server will start at `http://localhost:8081`. The first startup may take some time to download the Rust toolchain.
 
-## 使用方法
+## Usage
 
-### mdbookでの利用
+### Using with mdbook
 
-mdbookでローカルサーバーを使用するには、以下の設定が必要です：
+To use the local server with mdbook, the following configuration is required:
 
-1. `book.toml` にJavaScriptファイルを追加
-2. PlaygroundのAPIエンドポイントをローカルサーバーに変更
+1. Add JavaScript file to `book.toml`
+2. Change the Playground API endpoint to the local server
 
-詳細な設定例は `sample-book/book.toml` と `sample-book/local-playground.js` を参照してください。
+For detailed configuration examples, see `sample-book/book.toml` and `sample-book/local-playground.js`.
 
-### API直接利用
+### Direct API Usage
 
 ```bash
 curl -X POST http://localhost:8081/execute \
@@ -51,7 +52,7 @@ curl -X POST http://localhost:8081/execute \
   -d '{"code":"fn main() { println!(\"Hello, Rust!\"); }"}'
 ```
 
-**レスポンス例:**
+**Response Example:**
 ```json
 {
   "success": true,
@@ -60,15 +61,15 @@ curl -X POST http://localhost:8081/execute \
 }
 ```
 
-## 開発者向け
+## For Developers
 
 ```bash
-# ソースから起動（開発用）
+# Run from source (for development)
 go run main.go rust_bin.go
 
-# Makeを使用
+# Using Make
 make run-server
 
-# サンプルmdbook起動
+# Launch sample mdbook
 make serve-mdbook
 ```
