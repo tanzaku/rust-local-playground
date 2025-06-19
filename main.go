@@ -60,7 +60,7 @@ func executeRustCode(code string) ExecuteResponse {
 	defer os.RemoveAll(tempDir)
 
 	// Initialize Cargo project
-	cargoInitCmd := NewLocalRustCommand(cargoPath, "init", "--name", "temp_project", tempDir)
+	cargoInitCmd := NewRustCommand(cargoPath, "init", "--name", "temp_project", tempDir)
 	_, err = cargoInitCmd.CombinedOutput()
 	if err != nil {
 		return ExecuteResponse{
@@ -83,7 +83,7 @@ func executeRustCode(code string) ExecuteResponse {
 
 	// Compile with Cargo
 	rustTarget := getRustTarget()
-	execCmd := NewLocalRustCommand(cargoPath, "run", "--target", rustTarget)
+	execCmd := NewRustCommand(cargoPath, "run", "--target", rustTarget)
 	execCmd.Dir = tempDir
 
 	// Windowsではrust-lldを使わず、その他ではrust-lldを使用
