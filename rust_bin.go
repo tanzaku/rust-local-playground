@@ -9,61 +9,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
-// RUSTUP_HOME, CARGO_HOME のEnvを自動で持ったCommandをラップした構造体
-type LocalRustCommand struct {
-	name    string
-	args    []string
-	Env     []string
-	Dir     string
-	Stdout  *strings.Builder
-	Stderr  *strings.Builder
-	cmd     *exec.Cmd
-	Process *os.Process
-}
-
-func NewLocalRustCommand(name string, args ...string) *LocalRustCommand {
-	env := append(os.Environ(),
+// NewRustCommand creates a new exec.Cmd with RUSTUP_HOME and CARGO_HOME environment variables set
+func NewRustCommand(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.Env = append(os.Environ(),
 		"RUSTUP_HOME="+getRustHome(),
 		"CARGO_HOME="+getCargoHome(),
 		"CARGO_TARGET_DIR=",
 	)
-	filteredEnv := make([]string, 0, len(env))
-	for _, e := range env {
-		if !strings.HasPrefix(e, "CARGO_TARGET_DIR=") {
-			filteredEnv = append(filteredEnv, e)
-		}
-	}
-
-	return &LocalRustCommand{name, args, filteredEnv, "", nil, nil, nil, nil}
-}
-
-func (localCmd *LocalRustCommand) CombinedOutput() ([]byte, error) {
-	cmd := exec.Command(localCmd.name, localCmd.args...)
-	cmd.Env = localCmd.Env
-	cmd.Dir = localCmd.Dir
-	return cmd.CombinedOutput()
-}
-
-func (localCmd *LocalRustCommand) Start() error {
-	cmd := exec.Command(localCmd.name, localCmd.args...)
-	cmd.Env = localCmd.Env
-	cmd.Dir = localCmd.Dir
-	cmd.Stdout = localCmd.Stdout
-	cmd.Stderr = localCmd.Stderr
-	localCmd.cmd = cmd
-	err := cmd.Start()
-	if err == nil {
-		localCmd.Process = cmd.Process
-	}
-	return err
-}
-
-func (localCmd *LocalRustCommand) Wait() error {
-	return localCmd.cmd.Wait()
+	return cmd
 }
 
 // 作業ディレクトリのパス管理
@@ -252,7 +209,7 @@ func initializeRustToolchain() error {
 	defaultToolchain := "stable-" + rustTarget
 	log.Printf("Using platform-specific toolchain as default: %s", defaultToolchain)
 
-	cmd := NewLocalRustCommand(rustupInitPath,
+	cmd := NewRustCommand(rustupInitPath,
 		"--default-toolchain", defaultToolchain,
 		"--profile", "minimal",
 		"--no-modify-path",
